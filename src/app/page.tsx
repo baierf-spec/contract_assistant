@@ -206,10 +206,10 @@ export default function Home(): React.ReactElement {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       <main className="mx-auto px-4 py-10 space-y-12 max-w-6xl">
-        <header className="relative overflow-hidden rounded-2xl border border-black/10 dark:border-white/15 bg-gradient-to-br from-white to-slate-50 dark:from-black dark:to-neutral-900 p-10">
+        <header className="relative overflow-hidden rounded-2xl border border-black/10 dark:border-white/15 bg-gradient-to-br from-white to-slate-50 dark:from-black dark:to-neutral-900 p-10 h-entry">
           <div className="max-w-3xl space-y-3">
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-[color:var(--color-primary)]">AI Contract Assistant – Understand Any Legal Document in Seconds</h1>
-            <p className="text-base md:text-lg text-foreground/80">Upload your contract, get a clear summary, highlight risks, and ask questions in a friendly chat. Works with multilingual documents.</p>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-[color:var(--color-primary)] p-name">AI Contract Assistant – Understand Any Legal Document in Seconds</h1>
+            <p className="text-base md:text-lg text-foreground/80 e-content">Upload your contract, get a clear summary, highlight risks, and ask questions in a friendly chat. Works with multilingual documents.</p>
             <div className="flex gap-3 pt-2">
               <a href="#analyze" className="inline-flex items-center gap-2 h-11 px-5 rounded-md text-white text-sm font-semibold" style={{background:"var(--color-primary)"}}><Upload size={18}/>Try Demo</a>
               <a href="#qa" className="inline-flex items-center gap-2 h-11 px-5 rounded-md text-sm font-semibold" style={{border:"1px solid rgba(0,0,0,0.1)", background:"var(--color-accent)", color:"#0a0a0a"}}><MessageSquare size={18}/>Ask About a Contract</a>
@@ -430,15 +430,15 @@ export default function Home(): React.ReactElement {
           </p>
         </section>
 
-        <footer className="pt-6 text-sm text-foreground/70">
+        <footer className="pt-6 text-sm text-foreground/70 h-card">
           <div className="flex flex-wrap gap-4">
-            <a href="#" className="hover:underline">About</a>
+            <a href="#" className="hover:underline p-name u-url">AI Contract Assistant</a>
             <a href="#faq" className="hover:underline">FAQ</a>
             <a href="/privacy" className="hover:underline">Privacy Policy</a>
             <a href="/terms" className="hover:underline">Terms of Use</a>
             <a href="#" className="hover:underline">Contact</a>
           </div>
-          <div className="mt-2">© {new Date().getFullYear()} AI Contract Assistant</div>
+          <div className="mt-2">© {new Date().getFullYear()} <span className="p-org">AI Contract Assistant</span></div>
         </footer>
       </main>
     </div>
