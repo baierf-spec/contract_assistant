@@ -1,5 +1,3 @@
-import { Redis } from "@upstash/redis";
-
 type AnalyzeEvent = {
   timestampMs: number;
   dayKey: string; // YYYY-MM-DD
@@ -7,15 +5,26 @@ type AnalyzeEvent = {
   outcome: "ok" | "limited" | "error";
 };
 
-let redis: Redis | null = null;
-try {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
-    redis = new Redis({ url, token });
-  }
-} catch {
-  redis = null;
+// Lazy dynamic import to avoid build-time dependency on @upstash/redis
+let redisClientPromise: Promise<any | null> | null = null;
+async function getRedisClient(): Promise<any | null> {
+  if (redisClientPromise) return redisClientPromise;
+  redisClientPromise = (async () => {
+    try {
+      const url = process.env.UPSTASH_REDIS_REST_URL;
+      const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+      if (!url || !token) return null;
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const importer = new Function("m", "return import(m)");
+      const mod: any = await importer("@upstash/redis");
+      const RedisCtor = (mod?.Redis ?? mod?.default);
+      if (!RedisCtor) return null;
+      return new RedisCtor({ url, token });
+    } catch {
+      return null;
+    }
+  })();
+  return redisClientPromise;
 }
 
 // In-memory fallback for local/dev. Note: not persistent in serverless.
@@ -38,6 +47,7 @@ export async function recordAnalyzeEvent(params: {
   const countryField = `country:${country}`;
   const key = `metrics:analyze:${dayKey}`;
 
+  const redis = await getRedisClient();
   if (redis) {
     try {
       await Promise.all([
@@ -79,6 +89,7 @@ export async function readAnalyzeMetrics(days = 7): Promise<{
   for (const day of dayKeys) {
     const key = `metrics:analyze:${day}`;
     let obj: Record<string, number> = {};
+    const redis = await getRedisClient();
     if (redis) {
       try {
         const res = (await redis.hgetall<number>(key)) || {};
