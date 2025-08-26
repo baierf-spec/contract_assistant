@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://beicy.com"),
   title: "AI Contract Assistant – Understand Any Contract in Seconds",
   description:
     "Use AI to quickly understand legal contracts. Upload documents, ask questions, and get clear answers – secure, fast, and senior-friendly.",
@@ -60,6 +61,40 @@ export default function RootLayout({
             gtag('js', new Date());
             gtag('config', 'G-3S4YK6KHTS');
           `}
+        </Script>
+        <Script id="schema-organization" type="application/ld+json" strategy="afterInteractive">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "AI Contract Assistant",
+            url: "https://beicy.com",
+            logo: "https://beicy.com/favicon.ico"
+          })}
+        </Script>
+        <Script id="schema-website" type="application/ld+json" strategy="afterInteractive">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "AI Contract Assistant",
+            url: "https://beicy.com",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: "https://beicy.com/?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          })}
+        </Script>
+        <Script id="schema-software" type="application/ld+json" strategy="afterInteractive">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "AI Contract Assistant",
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            description:
+              "AI tool to analyze and summarize legal contracts with multilingual support.",
+            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" }
+          })}
         </Script>
         {children}
       </body>
