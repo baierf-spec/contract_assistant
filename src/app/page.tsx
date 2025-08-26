@@ -80,6 +80,14 @@ export default function Home(): React.ReactElement {
         body: form,
       });
       if (!response.ok) {
+        if (response.status === 429) {
+          const data = (await response.json()) as { error?: string; retryAfterSeconds?: number; retryAfterHuman?: string };
+          const msg = data?.retryAfterHuman
+            ? `Daily demo limit reached. Try again in ${data.retryAfterHuman}.`
+            : "Daily demo limit reached. Please try again tomorrow.";
+          setAnalysisResult({ summary: [], risks: [], detailed: msg });
+          return;
+        }
         throw new Error("Analysis failed");
       }
       const data = (await response.json()) as AnalysisResult & { text?: string };

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { extractTextFromFile } from "@/lib/extract";
 
@@ -24,6 +25,29 @@ function buildMockResponse(text: string) {
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
+    // Per-visitor daily limit using an httpOnly cookie
+    const cookieStore = cookies();
+    const lastStr = cookieStore.get("demo_last_analysis_ts")?.value ?? "";
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    const lastMs = Number.isFinite(Number(lastStr)) ? Number(lastStr) : 0;
+    if (lastMs > 0 && nowMs - lastMs < DAY_MS) {
+      const retryMs = lastMs + DAY_MS - nowMs;
+      const retrySeconds = Math.max(1, Math.ceil(retryMs / 1000));
+      const hours = Math.floor(retrySeconds / 3600);
+      const minutes = Math.floor((retrySeconds % 3600) / 60);
+      const human = `${hours}h ${minutes}m`;
+      return new Response(
+        JSON.stringify({ error: "daily_limit", retryAfterSeconds: retrySeconds, retryAfterHuman: human }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(retrySeconds),
+          },
+        }
+      );
+    }
     let text = "";
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
@@ -67,6 +91,14 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      // Mark usage for the day even in mock mode to preserve demo fairness
+      cookieStore.set("demo_last_analysis_ts", String(nowMs), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: true,
+        path: "/",
+        maxAge: 60 * 60 * 24,
+      });
       return Response.json(buildMockResponse(text), { status: 200 });
     }
 
@@ -91,6 +123,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
 
     const content = completion.choices?.[0]?.message?.content ?? "";
+
+    // Successful model call – set the daily lock cookie
+    cookieStore.set("demo_last_analysis_ts", String(nowMs), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
 
     function tryParseJson(jsonLike: string): { summary?: string[]; risks?: string[]; detailed?: string } | null {
       const trimmed = jsonLike.trim();
