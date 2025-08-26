@@ -1,3 +1,4 @@
+// Deployment config updated to ignore lint/type errors during build
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
