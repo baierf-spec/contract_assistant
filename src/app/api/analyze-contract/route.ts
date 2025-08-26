@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { extractTextFromFile } from "@/lib/extract";
+import { recordAnalyzeEvent } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // allow up to 60s for file parsing + model
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const nowMs = Date.now();
     const lastMs = Number.isFinite(Number(lastStr)) ? Number(lastStr) : 0;
     if (lastMs > 0 && nowMs - lastMs < DAY_MS) {
+      await recordAnalyzeEvent({ outcome: "limited", country: req.headers.get("x-vercel-ip-country") || undefined });
       const retryMs = lastMs + DAY_MS - nowMs;
       const retrySeconds = Math.max(1, Math.ceil(retryMs / 1000));
       const hours = Math.floor(retrySeconds / 3600);
@@ -99,6 +101,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         path: "/",
         maxAge: 60 * 60 * 24,
       });
+      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
       return Response.json(buildMockResponse(text), { status: 200 });
     }
 
@@ -146,12 +149,15 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const parsed = tryParseJson(content);
     if (parsed && Array.isArray(parsed.summary) && Array.isArray(parsed.risks) && typeof parsed.detailed === "string") {
+      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
       return Response.json({ summary: parsed.summary, risks: parsed.risks, detailed: parsed.detailed, text }, { status: 200 });
     }
 
     // Fallback: put everything in detailed if JSON parse failed
+    await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
     return Response.json({ summary: [], risks: [], detailed: content, text }, { status: 200 });
   } catch (_error) {
+    await recordAnalyzeEvent({ outcome: "error" });
     return Response.json({ error: "Failed to analyze" }, { status: 500 });
   }
 }
