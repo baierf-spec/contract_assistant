@@ -26,7 +26,7 @@ function buildMockResponse(text: string) {
 export async function POST(req: NextRequest): Promise<Response> {
   try {
     // Per-visitor daily limit using an httpOnly cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const lastStr = cookieStore.get("demo_last_analysis_ts")?.value ?? "";
     const DAY_MS = 24 * 60 * 60 * 1000;
     const nowMs = Date.now();

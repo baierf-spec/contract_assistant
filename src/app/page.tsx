@@ -22,6 +22,7 @@ export default function Home(): React.ReactElement {
   const [question, setQuestion] = useState<string>("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [uploadError, setUploadError] = useState<string>("");
+  const [limitMessage, setLimitMessage] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isSupportedFile = useCallback((file: File): boolean => {
@@ -85,7 +86,7 @@ export default function Home(): React.ReactElement {
           const msg = data?.retryAfterHuman
             ? `Daily demo limit reached. Try again in ${data.retryAfterHuman}.`
             : "Daily demo limit reached. Please try again tomorrow.";
-          setAnalysisResult({ summary: [], risks: [], detailed: msg });
+          setLimitMessage(msg);
           return;
         }
         throw new Error("Analysis failed");
@@ -273,7 +274,9 @@ export default function Home(): React.ReactElement {
                 )}
               </div>
             </div>
-
+            {limitMessage && (
+              <p className="text-xs" style={{ color: "#dc2626" }}>{limitMessage}</p>
+            )}
             <button
               type="button"
               onClick={analyzeContract}
