@@ -27,8 +27,11 @@ async function getRedisClient(): Promise<any | null> {
   return redisClientPromise;
 }
 
-// In-memory fallback for local/dev. Note: not persistent in serverless.
-const memoryStore: Map<string, Record<string, number>> = new Map();
+// In-memory fallback for local/dev. Note: not persistent across serverless instances.
+// Use a global singleton to better survive hot-reloads in dev.
+const g = globalThis as unknown as { __metricsStore?: Map<string, Record<string, number>> };
+const memoryStore: Map<string, Record<string, number>> = g.__metricsStore ?? new Map();
+g.__metricsStore = memoryStore;
 
 function getDayKey(date: Date = new Date()): string {
   return date.toISOString().slice(0, 10);
