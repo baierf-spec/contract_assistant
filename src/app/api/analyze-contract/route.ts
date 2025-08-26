@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import OpenAI from "openai";
 import { extractTextFromFile } from "@/lib/extract";
 import { recordAnalyzeEvent } from "@/lib/metrics";
+import { rateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // allow up to 60s for file parsing + model
@@ -26,14 +27,22 @@ function buildMockResponse(text: string) {
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
+    // Basic per-IP rate limit to protect API abuse
+    const ip = req.headers.get("x-forwarded-for") || "local";
+    const rl = await rateLimit({ key: `api:analyze:${ip}`, limit: 10, windowMs: 60 * 60 * 1000 });
+    if (!rl.allowed) {
+      return Response.json({ error: "rate_limited", retryAfterSeconds: Math.ceil(rl.resetMs / 1000) }, { status: 429 });
+    }
     // Per-visitor daily limit using an httpOnly cookie
     const cookieStore = await cookies();
     const lastStr = cookieStore.get("demo_last_analysis_ts")?.value ?? "";
     const DAY_MS = 24 * 60 * 60 * 1000;
     const nowMs = Date.now();
     const lastMs = Number.isFinite(Number(lastStr)) ? Number(lastStr) : 0;
+    // track upload flag later
+    let uploaded = false;
     if (lastMs > 0 && nowMs - lastMs < DAY_MS) {
-      await recordAnalyzeEvent({ outcome: "limited", country: req.headers.get("x-vercel-ip-country") || undefined });
+      await recordAnalyzeEvent({ outcome: "limited", country: req.headers.get("x-vercel-ip-country") || undefined, uploaded });
       const retryMs = lastMs + DAY_MS - nowMs;
       const retrySeconds = Math.max(1, Math.ceil(retryMs / 1000));
       const hours = Math.floor(retrySeconds / 3600);
@@ -61,6 +70,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       if (!(file instanceof File)) {
         return Response.json({ error: "Missing file" }, { status: 400 });
       }
+      uploaded = true;
       const fileName = (file as any).name?.toString()?.toLowerCase?.() ?? "";
       const fileType = file.type || "";
       if (fileType === "application/msword" || fileName.endsWith(".doc")) {
@@ -101,7 +111,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         path: "/",
         maxAge: 60 * 60 * 24,
       });
-      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
+      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined, uploaded });
       return Response.json(buildMockResponse(text), { status: 200 });
     }
 
@@ -149,12 +159,12 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const parsed = tryParseJson(content);
     if (parsed && Array.isArray(parsed.summary) && Array.isArray(parsed.risks) && typeof parsed.detailed === "string") {
-      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
+      await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined, uploaded });
       return Response.json({ summary: parsed.summary, risks: parsed.risks, detailed: parsed.detailed, text }, { status: 200 });
     }
 
     // Fallback: put everything in detailed if JSON parse failed
-    await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined });
+    await recordAnalyzeEvent({ outcome: "ok", country: req.headers.get("x-vercel-ip-country") || undefined, uploaded });
     return Response.json({ summary: [], risks: [], detailed: content, text }, { status: 200 });
   } catch (_error) {
     await recordAnalyzeEvent({ outcome: "error" });

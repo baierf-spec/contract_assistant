@@ -38,6 +38,7 @@ export async function recordAnalyzeEvent(params: {
   country?: string;
   outcome: AnalyzeEvent["outcome"];
   when?: Date;
+  uploaded?: boolean;
 }): Promise<void> {
   const dayKey = getDayKey(params.when ?? new Date());
   const country = (params.country || "ZZ").toUpperCase();
@@ -45,6 +46,7 @@ export async function recordAnalyzeEvent(params: {
   const totalField = "total";
   const outcomeField = `outcome:${params.outcome}`;
   const countryField = `country:${country}`;
+  const uploadsField = params.uploaded ? `uploads:${country}` : null;
   const key = `metrics:analyze:${dayKey}`;
 
   const redis = await getRedisClient();
@@ -54,6 +56,7 @@ export async function recordAnalyzeEvent(params: {
         redis.hincrby(key, totalField, 1),
         redis.hincrby(key, outcomeField, 1),
         redis.hincrby(key, countryField, 1),
+        uploadsField ? redis.hincrby(key, uploadsField, 1) : Promise.resolve(0),
         // expire keys after 60 days
         redis.expire(key, 60 * 24 * 60 * 60),
       ]);
@@ -67,13 +70,15 @@ export async function recordAnalyzeEvent(params: {
   current[totalField] = (current[totalField] ?? 0) + 1;
   current[outcomeField] = (current[outcomeField] ?? 0) + 1;
   current[countryField] = (current[countryField] ?? 0) + 1;
+  if (uploadsField) current[uploadsField] = (current[uploadsField] ?? 0) + 1;
   memoryStore.set(key, current);
 }
 
 export async function readAnalyzeMetrics(days = 7): Promise<{
   days: Array<{ day: string; total: number; ok: number; limited: number; error: number }>;
-  countries: Array<{ country: string; count: number }>;
+  countries: Array<{ country: string; count: number; uploads: number }>;
   totals: { total: number; ok: number; limited: number; error: number };
+  uploads: { total: number };
 }> {
   const dayKeys: string[] = [];
   for (let i = 0; i < days; i++) {
@@ -83,8 +88,9 @@ export async function readAnalyzeMetrics(days = 7): Promise<{
   }
 
   const dayData: Array<{ day: string; total: number; ok: number; limited: number; error: number }> = [];
-  const countryAgg: Map<string, number> = new Map();
+  const countryAgg: Map<string, { total: number; uploads: number }> = new Map();
   const totals = { total: 0, ok: 0, limited: 0, error: 0 };
+  let uploadsTotal = 0;
 
   for (const day of dayKeys) {
     const key = `metrics:analyze:${day}`;
@@ -116,16 +122,27 @@ export async function readAnalyzeMetrics(days = 7): Promise<{
     for (const [field, value] of Object.entries(obj)) {
       if (!field.startsWith("country:")) continue;
       const c = field.split(":")[1] ?? "ZZ";
-      countryAgg.set(c, (countryAgg.get(c) ?? 0) + Number(value ?? 0));
+      const prev = countryAgg.get(c) ?? { total: 0, uploads: 0 };
+      prev.total += Number(value ?? 0);
+      countryAgg.set(c, prev);
+    }
+
+    for (const [field, value] of Object.entries(obj)) {
+      if (!field.startsWith("uploads:")) continue;
+      const c = field.split(":")[1] ?? "ZZ";
+      const prev = countryAgg.get(c) ?? { total: 0, uploads: 0 };
+      prev.uploads += Number(value ?? 0);
+      countryAgg.set(c, prev);
+      uploadsTotal += Number(value ?? 0);
     }
   }
 
   const countries = Array.from(countryAgg.entries())
-    .map(([country, count]) => ({ country, count }))
+    .map(([country, v]) => ({ country, count: v.total, uploads: v.uploads }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 
-  return { days: dayData.reverse(), countries, totals };
+  return { days: dayData.reverse(), countries, totals, uploads: { total: uploadsTotal } };
 }
 
 

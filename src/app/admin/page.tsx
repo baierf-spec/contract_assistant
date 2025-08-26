@@ -4,8 +4,9 @@ import React, { useEffect, useState } from "react";
 
 type Metrics = {
   days: Array<{ day: string; total: number; ok: number; limited: number; error: number }>;
-  countries: Array<{ country: string; count: number }>;
+  countries: Array<{ country: string; count: number; uploads: number }>;
   totals: { total: number; ok: number; limited: number; error: number };
+  uploads: { total: number };
 };
 
 export default function Admin(): React.ReactElement {
@@ -43,6 +44,12 @@ export default function Admin(): React.ReactElement {
     if (m.ok) setMetrics((await m.json()) as Metrics);
   }
 
+  async function logout(): Promise<void> {
+    await fetch("/api/admin/logout", { method: "POST" });
+    setAuthed(false);
+    setMetrics(null);
+  }
+
   if (!authed) {
     return (
       <div className="max-w-md mx-auto px-4 py-10 space-y-4">
@@ -69,7 +76,10 @@ export default function Admin(): React.ReactElement {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10 space-y-6">
-      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <button onClick={() => void logout()} className="h-9 px-4 rounded-md text-sm text-white" style={{ background: "#334155" }}>Logout</button>
+      </div>
       {metrics ? (
         <>
           <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -92,6 +102,11 @@ export default function Admin(): React.ReactElement {
           </section>
 
           <section className="rounded-lg border p-4 bg-white dark:bg-black/20">
+            <h2 className="font-semibold mb-2">Uploads (last 14 days)</h2>
+            <div className="text-2xl font-bold">{metrics.uploads.total}</div>
+          </section>
+
+          <section className="rounded-lg border p-4 bg-white dark:bg-black/20">
             <h2 className="font-semibold mb-2">Last 14 days</h2>
             <div className="text-xs grid grid-cols-1 md:grid-cols-2 gap-2">
               {metrics.days.map((d) => (
@@ -109,7 +124,7 @@ export default function Admin(): React.ReactElement {
               {metrics.countries.map((c) => (
                 <div key={c.country} className="flex justify-between border rounded p-2">
                   <span>{c.country}</span>
-                  <span>{c.count}</span>
+                  <span>Total: {c.count} · Uploads: {c.uploads}</span>
                 </div>
               ))}
             </div>
